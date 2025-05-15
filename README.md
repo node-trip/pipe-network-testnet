@@ -123,4 +123,4 @@ rm -f pipe-testnet.sh && wget -nc --no-cache https://raw.githubusercontent.com/n
 
 ---
 
-**Скрипт разработан командой [NodeTrip](https://nodetrip.com)**
+**Скрипт разработан командой [@nodetrip](https://t.me/nodetrip)
