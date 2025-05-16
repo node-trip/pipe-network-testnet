@@ -243,7 +243,33 @@ EOL
     
     # 5. Настройка конфигурационного файла
     echo -e "${BLUE}5. Настраиваем конфигурационный файл...${NC}"
-    read -p "Введите имя вашей POP-ноды: " pop_name
+    # Используем то же имя ноды, что было сгенерировано ранее
+    if [ -z "$node_name" ]; then
+        # Если node_name еще не определен, генерируем его сейчас
+        node_prefixes=("Pipe" "Validator" "Cosmos" "Galaxy" "Orbit" "Stellar" "Space" "Crypto" "Block" "Digital" "Cyber" "Network" "Quantum" "Tech" "Cloud")
+        node_suffixes=("Node" "Point" "Validator" "Hub" "Station" "Portal" "Gateway" "Edge" "Server" "Relay" "Bridge")
+        node_adjectives=("Fast" "Stable" "Secure" "Power" "Main" "Prime" "Core" "Ultra" "Mega" "Super" "Hyper" "Smart")
+
+        prefix_index=$((RANDOM % ${#node_prefixes[@]}))
+        suffix_index=$((RANDOM % ${#node_suffixes[@]}))
+        adj_index=$((RANDOM % ${#node_adjectives[@]}))
+
+        # 50% шанс добавить прилагательное
+        if [[ $((RANDOM % 2)) -eq 0 ]]; then
+            node_name="${node_adjectives[$adj_index]}${node_prefixes[$prefix_index]}${node_suffixes[$suffix_index]}"
+        else
+            node_name="${node_prefixes[$prefix_index]}${node_suffixes[$suffix_index]}"
+        fi
+
+        # 40% шанс добавить 2-3 случайные цифры в конце
+        if [[ $((RANDOM % 5)) -lt 2 ]]; then
+            random_digits=$((RANDOM % 900 + 100))
+            node_name="${node_name}${random_digits}"
+        fi
+    fi
+    
+    pop_name="$node_name"
+    echo "Имя POP-ноды автоматически установлено: $pop_name"
     
     # Автоматическое определение местоположения
     echo -e "${BLUE}Определяем местоположение сервера...${NC}"
@@ -265,20 +291,78 @@ EOL
         read -p "Введите местоположение ноды (город, страна): " pop_location
     fi
     read -p "Введите пригласительный код: " invite_code
-    read -p "Введите имя ноды (для идентификации): " node_name
-    read -p "Введите ваше имя: " user_name
+    # Автоматически генерируем случайное имя ноды
+node_prefixes=("Pipe" "Validator" "Cosmos" "Galaxy" "Orbit" "Stellar" "Space" "Crypto" "Block" "Digital" "Cyber" "Network" "Quantum" "Tech" "Cloud")
+node_suffixes=("Node" "Point" "Validator" "Hub" "Station" "Portal" "Gateway" "Edge" "Server" "Relay" "Bridge")
+node_adjectives=("Fast" "Stable" "Secure" "Power" "Main" "Prime" "Core" "Ultra" "Mega" "Super" "Hyper" "Smart")
+
+prefix_index=$((RANDOM % ${#node_prefixes[@]}))
+suffix_index=$((RANDOM % ${#node_suffixes[@]}))
+adj_index=$((RANDOM % ${#node_adjectives[@]}))
+
+# 50% шанс добавить прилагательное
+if [[ $((RANDOM % 2)) -eq 0 ]]; then
+    node_name="${node_adjectives[$adj_index]}${node_prefixes[$prefix_index]}${node_suffixes[$suffix_index]}"
+else
+    node_name="${node_prefixes[$prefix_index]}${node_suffixes[$suffix_index]}"
+fi
+
+# 40% шанс добавить 2-3 случайные цифры в конце
+if [[ $((RANDOM % 5)) -lt 2 ]]; then
+    random_digits=$((RANDOM % 900 + 100))
+    node_name="${node_name}${random_digits}"
+fi
+
+echo "Имя ноды автоматически установлено: $node_name"
+
+# Автоматически генерируем случайное имя пользователя
+random_names=(
+    "Alex" "Maria" "Dmitry" "Elena" "Ivan" "Olga" "Sergey" "Anna" "Pavel" "Natalia"
+    "Michael" "Ekaterina" "Andrey" "Svetlana" "Nikolay" "Tatiana" "Vladimir" "Julia" "Alexey" "Victoria"
+    "Denis" "Irina" "Anton" "Yulia" "Roman" "Sofia" "Maxim" "Anastasia" "Artem" "Daria"
+    "Evgeny" "Polina" "Ilya" "Marina" "Oleg" "Ksenia" "Kirill" "Alina" "Nikita" "Christina"
+    "Mikhail" "Valentina" "Danila" "Kate" "Gregory" "Vera" "Victor" "Veronika" "Ruslan" "Elizaveta"
+    "Igor" "Vasilisa" "Arthur" "Sofia" "Leonid" "Diana" "Eduard" "Alena" "Vadim" "Yana"
+    "Mark" "Eva" "Timur" "Kristina" "Fedor" "Alexandra" "George" "Kira" "Boris" "Varvara"
+    "Semyon" "Ada" "Yaroslav" "Angelina" "Matvey" "Ulyana" "Philip" "Antonina" "Lev" "Tamara"
+    "Bogdan" "Emilia" "Stanislav" "Miroslava" "Arseniy" "Regina" "Egor" "Karina" "Peter" "Milana"
+    "John" "Sarah" "David" "Emma" "Robert" "Olivia" "William" "Ava" "Richard" "Sophia"
+    "Thomas" "Isabella" "Charles" "Mia" "Christopher" "Charlotte" "Daniel" "Amelia" "Matthew" "Harper"
+    "James" "Evelyn" "Joseph" "Abigail" "Andrew" "Emily" "Edward" "Elizabeth" "Jacob" "Ella"
+    "Samuel" "Camila" "Anthony" "Luna" "Mark" "Avery" "Steven" "Mila" "Brian" "Aria"
+    "Kevin" "Scarlett" "Paul" "Penelope" "Kenneth" "Layla" "Jason" "Chloe" "Timothy" "Grace"
+)
+random_index=$((RANDOM % ${#random_names[@]}))
+
+# Создаем имя без хеша, возможно добавляя случайный суффикс
+if [[ $((RANDOM % 3)) -eq 0 ]]; then
+    # 33% шанс добавить какой-то распространенный суффикс
+    suffixes=("dev" "validator" "node" "crypto" "web3" "defi" "tech" "pro" "net" "sys")
+    suffix_index=$((RANDOM % ${#suffixes[@]}))
+    user_name="${random_names[$random_index]}_${suffixes[$suffix_index]}"
+else
+    # Возможно добавляем одну-две цифры (30% шанс)
+    if [[ $((RANDOM % 10)) -lt 3 ]]; then
+        random_digit=$((RANDOM % 99 + 1))
+        user_name="${random_names[$random_index]}${random_digit}"
+    else
+        user_name="${random_names[$random_index]}"
+    fi
+fi
+
+echo "Имя пользователя автоматически установлено: $user_name"
     read -p "Введите ваш email: " user_email
     read -p "Введите ваш веб-сайт (или GitHub): " user_website
     read -p "Введите ваш Discord username: " user_discord
     read -p "Введите ваш Telegram username: " user_telegram
     read -p "Введите адрес вашего Solana кошелька для наград: " solana_pubkey
     
-    # Настройка параметров кэширования
-    read -p "Введите размер кэша в оперативной памяти (МБ, рекомендуется 4096): " memory_cache_size
-    memory_cache_size=${memory_cache_size:-4096}
+    # Автоматическая настройка параметров кэширования с рекомендуемыми значениями
+    memory_cache_size=4096
+    echo "Размер кэша в оперативной памяти автоматически установлен: ${memory_cache_size} МБ"
     
-    read -p "Введите размер дискового кэша (ГБ, рекомендуется 100): " disk_cache_size
-    disk_cache_size=${disk_cache_size:-100}
+    disk_cache_size=100
+    echo "Размер дискового кэша автоматически установлен: ${disk_cache_size} ГБ"
     
     # Создаем конфигурационный файл
     cat > /opt/popcache/config.json << EOL
@@ -1113,7 +1197,9 @@ install_docker_node() {
     
     echo -e "${BLUE}Сколько дискового пространства вы хотите выделить для кэша? (в ГБ)${NC}"
     echo -e "${YELLOW}Рекомендуется: минимум 100ГБ${NC}"
-    read -p "Введите размер дискового кэша в ГБ (по умолчанию: 100): " disk_cache_size
+    # Автоматически устанавливаем размер дискового кэша
+    disk_cache_size=100
+    echo "Размер дискового кэша автоматически установлен: ${disk_cache_size} ГБ"
     disk_cache_size=${disk_cache_size:-100}
     
     # Создаем конфигурационный файл
@@ -1251,7 +1337,9 @@ install_docker_node() {
     
     echo -e "${BLUE}Сколько дискового пространства вы хотите выделить для кэша? (в ГБ)${NC}"
     echo -e "${YELLOW}Рекомендуется: минимум 100ГБ${NC}"
-    read -p "Введите размер дискового кэша в ГБ (по умолчанию: 100): " disk_cache_size
+    # Автоматически устанавливаем размер дискового кэша
+    disk_cache_size=100
+    echo "Размер дискового кэша автоматически установлен: ${disk_cache_size} ГБ"
     disk_cache_size=${disk_cache_size:-100}
     
     # Создаем конфигурационный файл
@@ -1389,7 +1477,9 @@ install_docker_node() {
     
     echo -e "${BLUE}Сколько дискового пространства вы хотите выделить для кэша? (в ГБ)${NC}"
     echo -e "${YELLOW}Рекомендуется: минимум 100ГБ${NC}"
-    read -p "Введите размер дискового кэша в ГБ (по умолчанию: 100): " disk_cache_size
+    # Автоматически устанавливаем размер дискового кэша
+    disk_cache_size=100
+    echo "Размер дискового кэша автоматически установлен: ${disk_cache_size} ГБ"
     disk_cache_size=${disk_cache_size:-100}
     
     # Создаем конфигурационный файл
@@ -1527,7 +1617,9 @@ install_docker_node() {
     
     echo -e "${BLUE}Сколько дискового пространства вы хотите выделить для кэша? (в ГБ)${NC}"
     echo -e "${YELLOW}Рекомендуется: минимум 100ГБ${NC}"
-    read -p "Введите размер дискового кэша в ГБ (по умолчанию: 100): " disk_cache_size
+    # Автоматически устанавливаем размер дискового кэша
+    disk_cache_size=100
+    echo "Размер дискового кэша автоматически установлен: ${disk_cache_size} ГБ"
     disk_cache_size=${disk_cache_size:-100}
     
     # Создаем конфигурационный файл
@@ -1665,7 +1757,9 @@ install_docker_node() {
     
     echo -e "${BLUE}Сколько дискового пространства вы хотите выделить для кэша? (в ГБ)${NC}"
     echo -e "${YELLOW}Рекомендуется: минимум 100ГБ${NC}"
-    read -p "Введите размер дискового кэша в ГБ (по умолчанию: 100): " disk_cache_size
+    # Автоматически устанавливаем размер дискового кэша
+    disk_cache_size=100
+    echo "Размер дискового кэша автоматически установлен: ${disk_cache_size} ГБ"
     disk_cache_size=${disk_cache_size:-100}
     
     # Создаем конфигурационный файл
@@ -1803,7 +1897,9 @@ install_docker_node() {
     
     echo -e "${BLUE}Сколько дискового пространства вы хотите выделить для кэша? (в ГБ)${NC}"
     echo -e "${YELLOW}Рекомендуется: минимум 100ГБ${NC}"
-    read -p "Введите размер дискового кэша в ГБ (по умолчанию: 100): " disk_cache_size
+    # Автоматически устанавливаем размер дискового кэша
+    disk_cache_size=100
+    echo "Размер дискового кэша автоматически установлен: ${disk_cache_size} ГБ"
     disk_cache_size=${disk_cache_size:-100}
     
     # Создаем конфигурационный файл
@@ -1941,7 +2037,9 @@ install_docker_node() {
     
     echo -e "${BLUE}Сколько дискового пространства вы хотите выделить для кэша? (в ГБ)${NC}"
     echo -e "${YELLOW}Рекомендуется: минимум 100ГБ${NC}"
-    read -p "Введите размер дискового кэша в ГБ (по умолчанию: 100): " disk_cache_size
+    # Автоматически устанавливаем размер дискового кэша
+    disk_cache_size=100
+    echo "Размер дискового кэша автоматически установлен: ${disk_cache_size} ГБ"
     disk_cache_size=${disk_cache_size:-100}
     
     # Создаем конфигурационный файл
