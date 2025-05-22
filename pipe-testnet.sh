@@ -819,6 +819,131 @@ EOFSCRIPT
     read -n 1 -s -r -p "Нажмите любую клавишу для возврата в меню..."
 }
 
+
+
+
+
+# Функция для восстановления из распакованных файлов
+restore_from_unpacked_files() {
+    # Останавливаем сервис, если он запущен
+    if systemctl is-active --quiet popcache.service; then
+        echo -e "${BLUE}Останавливаем сервис popcache...${NC}"
+        systemctl stop popcache.service
+    fi
+    
+    # Убеждаемся, что директория существует
+    mkdir -p /opt/popcache
+    
+    # Копируем файлы из резервной копии
+    echo -e "${BLUE}Копируем файлы из $BACKUP_DIR в /opt/popcache...${NC}"
+    cp -f "$BACKUP_DIR/config.json" /opt/popcache/
+    cp -f "$BACKUP_DIR/.pop_state.json" /opt/popcache/
+    
+    # Копируем директорию logs, если она существует
+    if [ -d "$BACKUP_DIR/logs" ]; then
+        mkdir -p /opt/popcache/logs
+        cp -rf "$BACKUP_DIR/logs"/* /opt/popcache/logs/
+    fi
+    
+    # Проверяем наличие конфигурационного файла после копирования
+    if [ -f "/opt/popcache/config.json" ]; then
+        echo -e "${GREEN}Конфигурация успешно восстановлена${NC}"
+        
+        # Настраиваем systemd-сервис
+        setup_and_start_service
+    else
+        echo -e "${RED}Восстановление не удалось - config.json не найден после копирования${NC}"
+    fi
+}
+
+# Функция для восстановления из архива
+restore_from_archive() {
+    local backup_number=$1
+    backup_file=$(ls -1t "$BACKUP_DIR" | grep -E "\.tar\.gz$" | sed -n "${backup_number}p")
+    
+    if [ -n "$backup_file" ]; then
+        full_backup_path="$BACKUP_DIR/$backup_file"
+        
+        echo -e "${YELLOW}Это остановит текущий сервис ноды, если он запущен. Продолжить? (y/n)${NC}"
+        read -r restore_confirm
+        
+        if [ "$restore_confirm" = "y" ]; then
+            # Останавливаем сервис, если он запущен
+            if systemctl is-active --quiet popcache.service; then
+                echo -e "${BLUE}Останавливаем сервис popcache...${NC}"
+                systemctl stop popcache.service
+            fi
+            
+            # Убеждаемся, что директория существует
+            mkdir -p /opt/popcache
+            
+            # Распаковываем резервную копию
+            echo -e "${BLUE}Восстанавливаем из резервной копии: $full_backup_path${NC}"
+            tar -xzf "$full_backup_path" -C /opt/popcache
+            
+            # Проверяем наличие конфигурационного файла после распаковки
+            if [ -f "/opt/popcache/config.json" ]; then
+                echo -e "${GREEN}Конфигурация успешно восстановлена${NC}"
+                
+                # Настраиваем systemd-сервис
+                setup_and_start_service
+            else
+                echo -e "${RED}Восстановление не удалось - config.json не найден после распаковки${NC}"
+            fi
+        fi
+    else
+        echo -e "${RED}Неверный выбор резервной копии${NC}"
+    fi
+}
+
+# Функция для настройки и запуска сервиса
+setup_and_start_service() {
+    # Убеждаемся, что системный сервис настроен правильно
+    echo -e "${BLUE}Проверяем правильность настройки системного сервиса...${NC}"
+    bash -c 'cat > /etc/systemd/system/popcache.service << EOL
+[Unit]
+Description=POP Cache Node
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/popcache
+ExecStart=/opt/popcache/pop
+Restart=always
+RestartSec=5
+LimitNOFILE=65535
+StandardOutput=append:/opt/popcache/logs/stdout.log
+StandardError=append:/opt/popcache/logs/stderr.log
+Environment=POP_CONFIG_PATH=/opt/popcache/config.json
+
+[Install]
+WantedBy=multi-user.target
+EOL'
+    
+    # Проверяем наличие исполняемого файла
+    if [ ! -f "/opt/popcache/pop" ]; then
+        echo -e "${YELLOW}Исполняемый файл не найден. Скачиваем...${NC}"
+        cd /opt/popcache
+        wget https://download.pipe.network/static/pop-v0.3.0-linux-x64.tar.gz
+        tar -xzf pop-v0.3.0-linux-*.tar.gz
+        chmod 755 /opt/popcache/pop
+    fi
+    
+    # Запускаем сервис
+    echo -e "${BLUE}Запускаем сервис...${NC}"
+    systemctl daemon-reload
+    systemctl enable popcache.service
+    systemctl start popcache.service
+    
+    if systemctl is-active --quiet popcache.service; then
+        echo -e "${GREEN}Нода Pipe Network Testnet восстановлена и запущена!${NC}"
+    else
+        echo -e "${RED}Не удалось запустить сервис. Проверьте логи с помощью 'journalctl -u popcache.service'${NC}"
+    fi
+}
+
 # Функция восстановления данных ноды
 restore_node_data() {
     echo -e "${BLUE}=== Восстановление данных ноды ===${NC}"
@@ -847,92 +972,63 @@ restore_node_data() {
             fi
         fi
     else
-        # Показываем доступные резервные копии
-        echo -e "${BLUE}Доступные резервные копии:${NC}"
-        ls -1t "$BACKUP_DIR" | grep -E "\.tar\.gz$" | nl
-        echo
-        echo -e "${BLUE}Введите номер резервной копии для восстановления (или 0 для отмены):${NC}"
-        read -r backup_number
-        
-        if [ "$backup_number" -gt 0 ] 2>/dev/null; then
-            backup_file=$(ls -1t "$BACKUP_DIR" | grep -E "\.tar\.gz$" | sed -n "${backup_number}p")
+        # Проверяем, есть ли уже распакованные файлы
+        if [ -f "$BACKUP_DIR/config.json" ] && [ -f "$BACKUP_DIR/.pop_state.json" ]; then
+            echo -e "${GREEN}Обнаружены распакованные файлы резервной копии.${NC}"
+            echo -e "1) Использовать существующие файлы (config.json и .pop_state.json)"
             
-            if [ -n "$backup_file" ]; then
-                full_backup_path="$BACKUP_DIR/$backup_file"
-                
-                echo -e "${YELLOW}Это остановит текущий сервис ноды, если он запущен. Продолжить? (y/n)${NC}"
-                read -r restore_confirm
-                
-                if [ "$restore_confirm" = "y" ]; then
-                    # Останавливаем сервис, если он запущен
-                    if systemctl is-active --quiet popcache.service; then
-                        echo -e "${BLUE}Останавливаем сервис popcache...${NC}"
-                        systemctl stop popcache.service
-                    fi
-                    
-                    # Убеждаемся, что директория существует
-                    mkdir -p /opt/popcache
-                    
-                    # Распаковываем резервную копию
-                    echo -e "${BLUE}Восстанавливаем из резервной копии: $full_backup_path${NC}"
-                    tar -xzf "$full_backup_path" -C /opt/popcache
-                    
-                    if [ -f "/opt/popcache/config.json" ]; then
-                        echo -e "${GREEN}Конфигурация успешно восстановлена${NC}"
-                        
-                        # Убеждаемся, что системный сервис настроен правильно
-                        echo -e "${BLUE}Проверяем правильность настройки системного сервиса...${NC}"
-                        bash -c 'cat > /etc/systemd/system/popcache.service << EOL
-[Unit]
-Description=POP Cache Node
-After=network.target
-
-[Service]
-Type=simple
-User=root
-Group=root
-WorkingDirectory=/opt/popcache
-ExecStart=/opt/popcache/pop
-Restart=always
-RestartSec=5
-LimitNOFILE=65535
-StandardOutput=append:/opt/popcache/logs/stdout.log
-StandardError=append:/opt/popcache/logs/stderr.log
-Environment=POP_CONFIG_PATH=/opt/popcache/config.json
-
-[Install]
-WantedBy=multi-user.target
-EOL'
-                        
-                        # Проверяем наличие исполняемого файла
-                        if [ ! -f "/opt/popcache/pop" ]; then
-                            echo -e "${YELLOW}Исполняемый файл не найден. Скачиваем...${NC}"
-                            cd /opt/popcache
-                            wget https://download.pipe.network/static/pop-v0.3.0-linux-x64.tar.gz
-                            tar -xzf pop-v0.3.0-linux-*.tar.gz
-                            chmod 755 /opt/popcache/pop
-                        fi
-                        
-                        # Запускаем сервис
-                        echo -e "${BLUE}Запускаем сервис...${NC}"
-                        systemctl daemon-reload
-                        systemctl enable popcache.service
-                        systemctl start popcache.service
-                        
-                        if systemctl is-active --quiet popcache.service; then
-                            echo -e "${GREEN}Нода Pipe Network Testnet восстановлена и запущена!${NC}"
-                        else
-                            echo -e "${RED}Не удалось запустить сервис. Проверьте логи с помощью 'journalctl -u popcache.service'${NC}"
-                        fi
-                    else
-                        echo -e "${RED}Восстановление не удалось - config.json не найден после распаковки${NC}"
-                    fi
-                fi
-            else
-                echo -e "${RED}Неверный выбор резервной копии${NC}"
+            # Также проверяем, есть ли архивы для возможного выбора
+            tar_files=$(ls -1t "$BACKUP_DIR" | grep -E "\.tar\.gz$" | nl)
+            if [ -n "$tar_files" ]; then
+                echo -e "${BLUE}Доступные архивы резервных копий:${NC}"
+                echo "$tar_files"
+                echo -e "2) Использовать архив из списка выше"
             fi
-        elif [ "$backup_number" -ne 0 ]; then
-            echo -e "${RED}Неверный выбор${NC}"
+            
+            echo -e "0) Отмена"
+            echo
+            echo -e "${BLUE}Введите ваш выбор (0, 1 или 2):${NC}"
+            read -r restore_choice
+            
+            case $restore_choice in
+                1)
+                    # Используем существующие распакованные файлы
+                    echo -e "${YELLOW}Это остановит текущий сервис ноды, если он запущен. Продолжить? (y/n)${NC}"
+                    read -r restore_confirm
+                    
+                    if [ "$restore_confirm" = "y" ]; then
+                        # Восстановление из распакованных файлов
+                        restore_from_unpacked_files
+                    fi
+                    ;;
+                2)
+                    # Используем архив из списка
+                    echo -e "${BLUE}Введите номер резервной копии для восстановления:${NC}"
+                    read -r backup_number
+                    
+                    if [ "$backup_number" -gt 0 ] 2>/dev/null; then
+                        restore_from_archive $backup_number
+                    else
+                        echo -e "${RED}Неверный выбор${NC}"
+                    fi
+                    ;;
+                0|*)
+                    echo -e "${YELLOW}Операция отменена${NC}"
+                    ;;
+            esac
+        else
+            # Если нет распакованных файлов, показываем только архивы
+            echo -e "${BLUE}Доступные резервные копии:${NC}"
+            ls -1t "$BACKUP_DIR" | grep -E "\.tar\.gz$" | nl
+            echo
+            echo -e "${BLUE}Введите номер резервной копии для восстановления (или 0 для отмены):${NC}"
+            read -r backup_number
+            
+            if [ "$backup_number" -gt 0 ] 2>/dev/null; then
+                restore_from_archive $backup_number
+            elif [ "$backup_number" -ne 0 ]; then
+                echo -e "${RED}Неверный выбор${NC}"
+            fi
         fi
     fi
     
