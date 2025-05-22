@@ -45,6 +45,7 @@ show_menu() {
     echo "6. Просмотреть логи установки"
     echo "7. Диагностика проблем запуска ноды"
     echo "8. Остановить ноду Devnet (если запущена)"
+    echo "9. Исправить проблему с pop_id = 0 (для дашборда)"
     echo "0. Выход"
     echo
 }
@@ -243,33 +244,7 @@ EOL
     
     # 5. Настройка конфигурационного файла
     echo -e "${BLUE}5. Настраиваем конфигурационный файл...${NC}"
-    # Используем то же имя ноды, что было сгенерировано ранее
-    if [ -z "$node_name" ]; then
-        # Если node_name еще не определен, генерируем его сейчас
-        node_prefixes=("Pipe" "Validator" "Cosmos" "Galaxy" "Orbit" "Stellar" "Space" "Crypto" "Block" "Digital" "Cyber" "Network" "Quantum" "Tech" "Cloud")
-        node_suffixes=("Node" "Point" "Validator" "Hub" "Station" "Portal" "Gateway" "Edge" "Server" "Relay" "Bridge")
-        node_adjectives=("Fast" "Stable" "Secure" "Power" "Main" "Prime" "Core" "Ultra" "Mega" "Super" "Hyper" "Smart")
-
-        prefix_index=$((RANDOM % ${#node_prefixes[@]}))
-        suffix_index=$((RANDOM % ${#node_suffixes[@]}))
-        adj_index=$((RANDOM % ${#node_adjectives[@]}))
-
-        # 50% шанс добавить прилагательное
-        if [[ $((RANDOM % 2)) -eq 0 ]]; then
-            node_name="${node_adjectives[$adj_index]}${node_prefixes[$prefix_index]}${node_suffixes[$suffix_index]}"
-        else
-            node_name="${node_prefixes[$prefix_index]}${node_suffixes[$suffix_index]}"
-        fi
-
-        # 40% шанс добавить 2-3 случайные цифры в конце
-        if [[ $((RANDOM % 5)) -lt 2 ]]; then
-            random_digits=$((RANDOM % 900 + 100))
-            node_name="${node_name}${random_digits}"
-        fi
-    fi
-    
-    pop_name="$node_name"
-    echo "Имя POP-ноды автоматически установлено: $pop_name"
+    read -p "Введите имя вашей POP-ноды: " pop_name
     
     # Автоматическое определение местоположения
     echo -e "${BLUE}Определяем местоположение сервера...${NC}"
@@ -291,78 +266,20 @@ EOL
         read -p "Введите местоположение ноды (город, страна): " pop_location
     fi
     read -p "Введите пригласительный код: " invite_code
-    # Автоматически генерируем случайное имя ноды
-node_prefixes=("Pipe" "Validator" "Cosmos" "Galaxy" "Orbit" "Stellar" "Space" "Crypto" "Block" "Digital" "Cyber" "Network" "Quantum" "Tech" "Cloud")
-node_suffixes=("Node" "Point" "Validator" "Hub" "Station" "Portal" "Gateway" "Edge" "Server" "Relay" "Bridge")
-node_adjectives=("Fast" "Stable" "Secure" "Power" "Main" "Prime" "Core" "Ultra" "Mega" "Super" "Hyper" "Smart")
-
-prefix_index=$((RANDOM % ${#node_prefixes[@]}))
-suffix_index=$((RANDOM % ${#node_suffixes[@]}))
-adj_index=$((RANDOM % ${#node_adjectives[@]}))
-
-# 50% шанс добавить прилагательное
-if [[ $((RANDOM % 2)) -eq 0 ]]; then
-    node_name="${node_adjectives[$adj_index]}${node_prefixes[$prefix_index]}${node_suffixes[$suffix_index]}"
-else
-    node_name="${node_prefixes[$prefix_index]}${node_suffixes[$suffix_index]}"
-fi
-
-# 40% шанс добавить 2-3 случайные цифры в конце
-if [[ $((RANDOM % 5)) -lt 2 ]]; then
-    random_digits=$((RANDOM % 900 + 100))
-    node_name="${node_name}${random_digits}"
-fi
-
-echo "Имя ноды автоматически установлено: $node_name"
-
-# Автоматически генерируем случайное имя пользователя
-random_names=(
-    "Alex" "Maria" "Dmitry" "Elena" "Ivan" "Olga" "Sergey" "Anna" "Pavel" "Natalia"
-    "Michael" "Ekaterina" "Andrey" "Svetlana" "Nikolay" "Tatiana" "Vladimir" "Julia" "Alexey" "Victoria"
-    "Denis" "Irina" "Anton" "Yulia" "Roman" "Sofia" "Maxim" "Anastasia" "Artem" "Daria"
-    "Evgeny" "Polina" "Ilya" "Marina" "Oleg" "Ksenia" "Kirill" "Alina" "Nikita" "Christina"
-    "Mikhail" "Valentina" "Danila" "Kate" "Gregory" "Vera" "Victor" "Veronika" "Ruslan" "Elizaveta"
-    "Igor" "Vasilisa" "Arthur" "Sofia" "Leonid" "Diana" "Eduard" "Alena" "Vadim" "Yana"
-    "Mark" "Eva" "Timur" "Kristina" "Fedor" "Alexandra" "George" "Kira" "Boris" "Varvara"
-    "Semyon" "Ada" "Yaroslav" "Angelina" "Matvey" "Ulyana" "Philip" "Antonina" "Lev" "Tamara"
-    "Bogdan" "Emilia" "Stanislav" "Miroslava" "Arseniy" "Regina" "Egor" "Karina" "Peter" "Milana"
-    "John" "Sarah" "David" "Emma" "Robert" "Olivia" "William" "Ava" "Richard" "Sophia"
-    "Thomas" "Isabella" "Charles" "Mia" "Christopher" "Charlotte" "Daniel" "Amelia" "Matthew" "Harper"
-    "James" "Evelyn" "Joseph" "Abigail" "Andrew" "Emily" "Edward" "Elizabeth" "Jacob" "Ella"
-    "Samuel" "Camila" "Anthony" "Luna" "Mark" "Avery" "Steven" "Mila" "Brian" "Aria"
-    "Kevin" "Scarlett" "Paul" "Penelope" "Kenneth" "Layla" "Jason" "Chloe" "Timothy" "Grace"
-)
-random_index=$((RANDOM % ${#random_names[@]}))
-
-# Создаем имя без хеша, возможно добавляя случайный суффикс
-if [[ $((RANDOM % 3)) -eq 0 ]]; then
-    # 33% шанс добавить какой-то распространенный суффикс
-    suffixes=("dev" "validator" "node" "crypto" "web3" "defi" "tech" "pro" "net" "sys")
-    suffix_index=$((RANDOM % ${#suffixes[@]}))
-    user_name="${random_names[$random_index]}_${suffixes[$suffix_index]}"
-else
-    # Возможно добавляем одну-две цифры (30% шанс)
-    if [[ $((RANDOM % 10)) -lt 3 ]]; then
-        random_digit=$((RANDOM % 99 + 1))
-        user_name="${random_names[$random_index]}${random_digit}"
-    else
-        user_name="${random_names[$random_index]}"
-    fi
-fi
-
-echo "Имя пользователя автоматически установлено: $user_name"
+    read -p "Введите имя ноды (для идентификации): " node_name
+    read -p "Введите ваше имя: " user_name
     read -p "Введите ваш email: " user_email
     read -p "Введите ваш веб-сайт (или GitHub): " user_website
     read -p "Введите ваш Discord username: " user_discord
     read -p "Введите ваш Telegram username: " user_telegram
     read -p "Введите адрес вашего Solana кошелька для наград: " solana_pubkey
     
-    # Автоматическая настройка параметров кэширования с рекомендуемыми значениями
-    memory_cache_size=4096
-    echo "Размер кэша в оперативной памяти автоматически установлен: ${memory_cache_size} МБ"
+    # Настройка параметров кэширования
+    read -p "Введите размер кэша в оперативной памяти (МБ, рекомендуется 4096): " memory_cache_size
+    memory_cache_size=${memory_cache_size:-4096}
     
-    disk_cache_size=100
-    echo "Размер дискового кэша автоматически установлен: ${disk_cache_size} ГБ"
+    read -p "Введите размер дискового кэша (ГБ, рекомендуется 100): " disk_cache_size
+    disk_cache_size=${disk_cache_size:-100}
     
     # Создаем конфигурационный файл
     cat > /opt/popcache/config.json << EOL
@@ -1140,6 +1057,137 @@ diagnose_node_issues() {
     read -n 1 -s -r -p "Нажмите любую клавишу для возврата в меню..."
 }
 
+# Функция для исправления проблемы с pop_id = 0
+fix_popid_issue() {
+    echo -e "${BLUE}=== Исправление проблемы с pop_id = 0 ===${NC}"
+    echo -e "${YELLOW}Эта функция исправит проблему, когда в дашборде не отображается ваша нода из-за pop_id = 0${NC}"
+    
+    # Проверяем, работает ли нода
+    if ! systemctl is-active --quiet popcache.service; then
+        echo -e "${RED}Нода не запущена! Запустите ноду перед исправлением.${NC}"
+        read -n 1 -s -r -p "Нажмите любую клавишу для возврата в меню..."
+        return
+    fi
+    
+    # Проверяем наличие файла .pop_state.json
+    if [ ! -f "/opt/popcache/.pop_state.json" ]; then
+        echo -e "${RED}Файл .pop_state.json не найден! Убедитесь, что нода правильно установлена.${NC}"
+        read -n 1 -s -r -p "Нажмите любую клавишу для возврата в меню..."
+        return
+    fi
+    
+    # Проверяем значение pop_id
+    CURRENT_POP_ID=$(grep -o '"pop_id": "[0-9]*"' /opt/popcache/.pop_state.json | cut -d '"' -f 4)
+    echo -e "${BLUE}Текущий pop_id: ${YELLOW}$CURRENT_POP_ID${NC}"
+    
+    if [ "$CURRENT_POP_ID" != "0" ]; then
+        echo -e "${GREEN}Ваш pop_id не равен 0, исправление не требуется.${NC}"
+        echo -e "${BLUE}Вы можете отслеживать статус вашей ноды по ссылке:${NC}"
+        echo -e "${YELLOW}https://dashboard.testnet.pipe.network/node/$CURRENT_POP_ID${NC}"
+        read -n 1 -s -r -p "Нажмите любую клавишу для возврата в меню..."
+        return
+    fi
+    
+    echo -e "${YELLOW}Для исправления проблемы необходимо:${NC}"
+    echo -e "1. Остановить службу popcache"
+    echo -e "2. Удалить файлы .pop_state.json и .pop_state.json.bak"
+    echo -e "3. Изменить имя POP в файле config.json"
+    echo -e "4. Перезапустить службу popcache"
+    
+    echo -e "\n${YELLOW}Продолжить исправление? (y/n)${NC}"
+    read -r fix_confirm
+    
+    if [ "$fix_confirm" != "y" ]; then
+        echo -e "${BLUE}Исправление отменено.${NC}"
+        read -n 1 -s -r -p "Нажмите любую клавишу для возврата в меню..."
+        return
+    fi
+    
+    # Получаем текущее имя POP
+    if [ -f "/opt/popcache/config.json" ] && command -v jq &> /dev/null; then
+        CURRENT_POP_NAME=$(jq -r '.pop_name' /opt/popcache/config.json)
+        echo -e "${BLUE}Текущее имя POP: ${YELLOW}$CURRENT_POP_NAME${NC}"
+        
+        # Предлагаем новое имя
+        NEW_POP_NAME="${CURRENT_POP_NAME}_new"
+        echo -e "${BLUE}Предлагаемое новое имя POP: ${YELLOW}$NEW_POP_NAME${NC}"
+        echo -e "${YELLOW}Хотите использовать это имя или ввести другое? (use/new)${NC}"
+        read -r name_choice
+        
+        if [ "$name_choice" = "new" ]; then
+            echo -e "${BLUE}Введите новое имя POP:${NC}"
+            read -r NEW_POP_NAME
+        fi
+    else
+        echo -e "${YELLOW}Не удалось автоматически определить текущее имя POP.${NC}"
+        echo -e "${BLUE}Введите новое имя POP:${NC}"
+        read -r NEW_POP_NAME
+    fi
+    
+    # Останавливаем службу
+    echo -e "${BLUE}Останавливаем службу popcache...${NC}"
+    systemctl stop popcache.service
+    sleep 2
+    
+    # Удаляем файлы состояния
+    echo -e "${BLUE}Удаляем файлы состояния...${NC}"
+    rm -f /opt/popcache/.pop_state.json /opt/popcache/.pop_state.json.bak
+    
+    # Обновляем имя в config.json
+    echo -e "${BLUE}Обновляем имя POP в config.json...${NC}"
+    if [ -f "/opt/popcache/config.json" ] && command -v jq &> /dev/null; then
+        # Создаем резервную копию config.json
+        cp /opt/popcache/config.json /opt/popcache/config.json.bak
+        
+        # Обновляем имя с помощью jq
+        jq --arg new_name "$NEW_POP_NAME" '.pop_name = $new_name' /opt/popcache/config.json > /opt/popcache/config.json.tmp
+        mv /opt/popcache/config.json.tmp /opt/popcache/config.json
+        
+        echo -e "${GREEN}Имя POP успешно обновлено.${NC}"
+    else
+        echo -e "${RED}Не удалось обновить config.json. Убедитесь, что файл существует и jq установлен.${NC}"
+        echo -e "${YELLOW}Вы можете отредактировать файл вручную: /opt/popcache/config.json${NC}"
+        echo -e "${YELLOW}Измените значение 'pop_name' на: $NEW_POP_NAME${NC}"
+        
+        echo -e "${YELLOW}Нажмите любую клавишу, когда будете готовы продолжить...${NC}"
+        read -n 1 -s -r
+    fi
+    
+    # Перезапускаем службу
+    echo -e "${BLUE}Перезапускаем службу popcache...${NC}"
+    systemctl daemon-reload
+    systemctl start popcache.service
+    sleep 5
+    
+    # Проверяем статус
+    if systemctl is-active --quiet popcache.service; then
+        echo -e "${GREEN}Служба popcache успешно запущена.${NC}"
+    else
+        echo -e "${RED}Не удалось запустить службу popcache.${NC}"
+        systemctl status popcache.service
+    fi
+    
+    # Проверяем новый pop_id
+    sleep 3
+    if [ -f "/opt/popcache/.pop_state.json" ]; then
+        NEW_POP_ID=$(grep -o '"pop_id": "[0-9]*"' /opt/popcache/.pop_state.json | cut -d '"' -f 4)
+        echo -e "${BLUE}Новый pop_id: ${YELLOW}$NEW_POP_ID${NC}"
+        
+        if [ "$NEW_POP_ID" != "0" ] && [ -n "$NEW_POP_ID" ]; then
+            echo -e "${GREEN}Проблема успешно исправлена!${NC}"
+            echo -e "${BLUE}Теперь вы можете отслеживать статус вашей ноды по ссылке:${NC}"
+            echo -e "${YELLOW}https://dashboard.testnet.pipe.network/node/$NEW_POP_ID${NC}"
+        else
+            echo -e "${RED}Не удалось исправить проблему. pop_id все еще равен 0 или не определен.${NC}"
+            echo -e "${YELLOW}Попробуйте перезапустить ноду через некоторое время или обратитесь в поддержку.${NC}"
+        fi
+    else
+        echo -e "${RED}Файл .pop_state.json не создан после перезапуска.${NC}"
+    fi
+    
+    read -n 1 -s -r -p "Нажмите любую клавишу для возврата в меню..."
+}
+
 # Основной цикл меню
 while true; do
     show_menu
@@ -1153,6 +1201,7 @@ while true; do
         6) show_logs ;;
         7) diagnose_node_issues ;;
         8) stop_devnet_node ;;
+        9) fix_popid_issue ;;
         0) exit 0 ;;
         *) echo -e "${RED}Неверный выбор${NC}" ;;
     esac
@@ -1197,9 +1246,7 @@ install_docker_node() {
     
     echo -e "${BLUE}Сколько дискового пространства вы хотите выделить для кэша? (в ГБ)${NC}"
     echo -e "${YELLOW}Рекомендуется: минимум 100ГБ${NC}"
-    # Автоматически устанавливаем размер дискового кэша
-    disk_cache_size=100
-    echo "Размер дискового кэша автоматически установлен: ${disk_cache_size} ГБ"
+    read -p "Введите размер дискового кэша в ГБ (по умолчанию: 100): " disk_cache_size
     disk_cache_size=${disk_cache_size:-100}
     
     # Создаем конфигурационный файл
@@ -1337,9 +1384,7 @@ install_docker_node() {
     
     echo -e "${BLUE}Сколько дискового пространства вы хотите выделить для кэша? (в ГБ)${NC}"
     echo -e "${YELLOW}Рекомендуется: минимум 100ГБ${NC}"
-    # Автоматически устанавливаем размер дискового кэша
-    disk_cache_size=100
-    echo "Размер дискового кэша автоматически установлен: ${disk_cache_size} ГБ"
+    read -p "Введите размер дискового кэша в ГБ (по умолчанию: 100): " disk_cache_size
     disk_cache_size=${disk_cache_size:-100}
     
     # Создаем конфигурационный файл
@@ -1477,9 +1522,7 @@ install_docker_node() {
     
     echo -e "${BLUE}Сколько дискового пространства вы хотите выделить для кэша? (в ГБ)${NC}"
     echo -e "${YELLOW}Рекомендуется: минимум 100ГБ${NC}"
-    # Автоматически устанавливаем размер дискового кэша
-    disk_cache_size=100
-    echo "Размер дискового кэша автоматически установлен: ${disk_cache_size} ГБ"
+    read -p "Введите размер дискового кэша в ГБ (по умолчанию: 100): " disk_cache_size
     disk_cache_size=${disk_cache_size:-100}
     
     # Создаем конфигурационный файл
@@ -1617,9 +1660,7 @@ install_docker_node() {
     
     echo -e "${BLUE}Сколько дискового пространства вы хотите выделить для кэша? (в ГБ)${NC}"
     echo -e "${YELLOW}Рекомендуется: минимум 100ГБ${NC}"
-    # Автоматически устанавливаем размер дискового кэша
-    disk_cache_size=100
-    echo "Размер дискового кэша автоматически установлен: ${disk_cache_size} ГБ"
+    read -p "Введите размер дискового кэша в ГБ (по умолчанию: 100): " disk_cache_size
     disk_cache_size=${disk_cache_size:-100}
     
     # Создаем конфигурационный файл
@@ -1757,9 +1798,7 @@ install_docker_node() {
     
     echo -e "${BLUE}Сколько дискового пространства вы хотите выделить для кэша? (в ГБ)${NC}"
     echo -e "${YELLOW}Рекомендуется: минимум 100ГБ${NC}"
-    # Автоматически устанавливаем размер дискового кэша
-    disk_cache_size=100
-    echo "Размер дискового кэша автоматически установлен: ${disk_cache_size} ГБ"
+    read -p "Введите размер дискового кэша в ГБ (по умолчанию: 100): " disk_cache_size
     disk_cache_size=${disk_cache_size:-100}
     
     # Создаем конфигурационный файл
@@ -1897,9 +1936,7 @@ install_docker_node() {
     
     echo -e "${BLUE}Сколько дискового пространства вы хотите выделить для кэша? (в ГБ)${NC}"
     echo -e "${YELLOW}Рекомендуется: минимум 100ГБ${NC}"
-    # Автоматически устанавливаем размер дискового кэша
-    disk_cache_size=100
-    echo "Размер дискового кэша автоматически установлен: ${disk_cache_size} ГБ"
+    read -p "Введите размер дискового кэша в ГБ (по умолчанию: 100): " disk_cache_size
     disk_cache_size=${disk_cache_size:-100}
     
     # Создаем конфигурационный файл
@@ -2037,9 +2074,7 @@ install_docker_node() {
     
     echo -e "${BLUE}Сколько дискового пространства вы хотите выделить для кэша? (в ГБ)${NC}"
     echo -e "${YELLOW}Рекомендуется: минимум 100ГБ${NC}"
-    # Автоматически устанавливаем размер дискового кэша
-    disk_cache_size=100
-    echo "Размер дискового кэша автоматически установлен: ${disk_cache_size} ГБ"
+    read -p "Введите размер дискового кэша в ГБ (по умолчанию: 100): " disk_cache_size
     disk_cache_size=${disk_cache_size:-100}
     
     # Создаем конфигурационный файл
