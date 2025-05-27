@@ -30,6 +30,47 @@ log_message() {
     echo -e "$message"
 }
 
+# Функция для автоматического определения местоположения сервера
+get_server_location() {
+    # Отображаем сообщение в консоль, но не включаем его в возвращаемое значение
+    echo -e "${BLUE}Определяем местоположение сервера...${NC}" >&2
+    
+    # Пытаемся определить местоположение через ipinfo.io
+    if command -v curl &> /dev/null; then
+        local ip_info=$(curl -s https://ipinfo.io 2>/dev/null)
+        
+        if [ $? -eq 0 ] && [ ! -z "$ip_info" ]; then
+            local city=$(echo "$ip_info" | grep -o '"city": "[^"]*"' | cut -d '"' -f 4)
+            local region=$(echo "$ip_info" | grep -o '"region": "[^"]*"' | cut -d '"' -f 4)
+            local country=$(echo "$ip_info" | grep -o '"country": "[^"]*"' | cut -d '"' -f 4)
+            
+            if [ ! -z "$city" ] && [ ! -z "$country" ]; then
+                echo "$city, $country"
+                return 0
+            fi
+        fi
+    fi
+    
+    # Альтернативный способ через ip-api.com
+    if command -v curl &> /dev/null; then
+        local ip_api_info=$(curl -s http://ip-api.com/json 2>/dev/null)
+        
+        if [ $? -eq 0 ] && [ ! -z "$ip_api_info" ]; then
+            local city=$(echo "$ip_api_info" | grep -o '"city":"[^"]*"' | cut -d '"' -f 4)
+            local country=$(echo "$ip_api_info" | grep -o '"countryCode":"[^"]*"' | cut -d '"' -f 4)
+            
+            if [ ! -z "$city" ] && [ ! -z "$country" ]; then
+                echo "$city, $country"
+                return 0
+            fi
+        fi
+    fi
+    
+    # Если не удалось определить местоположение
+    echo "Unknown Location"
+    return 1
+}
+
 # Функция для отображения главного меню
 show_menu() {
     clear
@@ -491,27 +532,117 @@ monitor_node() {
                 read -n 1 -s -r -p "Нажмите любую клавишу для продолжения..."
                 ;;
             5)
-                echo -e "${BLUE}Проверка портов 80 и 443:${NC}"
-                echo -e "${YELLOW}Проверяем, что порты 80 и 443 заняты нодой...${NC}"
-                ss -tulnp | grep -E ':80|:443'
-                echo -e "\n${BLUE}Подробная информация о порте 80:${NC}"
-                lsof -i :80
-                echo -e "\n${BLUE}Подробная информация о порте 443:${NC}"
-                lsof -i :443
-                echo -e "${GREEN}Порты 80 и 443 должны быть заняты вашей нодой.${NC}"
+                # Определяем порты из конфигурации
+                if [ -f "/opt/popcache/config.json" ]; then
+                    http_port=$(grep -o '"http_port": *[0-9]*' /opt/popcache/config.json | grep -o '[0-9]*')
+                    https_port=$(grep -o '"port": *[0-9]*' /opt/popcache/config.json | grep -o '[0-9]*')
+                    
+                    if [ -z "$http_port" ]; then http_port="80"; fi
+                    if [ -z "$https_port" ]; then https_port="443"; fi
+                    
+                    echo -e "${BLUE}Проверка портов ноды:${NC}"
+                    echo -e "${YELLOW}Проверяем, что порты $http_port (HTTP) и $https_port (HTTPS) заняты нодой...${NC}"
+                    ss -tulnp | grep -E ":$http_port|:$https_port"
+                    
+                    echo -e "\n${BLUE}Подробная информация о HTTP порте ($http_port):${NC}"
+                    lsof -i :$http_port 2>/dev/null || echo -e "${YELLOW}Нет информации о порте $http_port${NC}"
+                    
+                    echo -e "\n${BLUE}Подробная информация о HTTPS порте ($https_port):${NC}"
+                    lsof -i :$https_port 2>/dev/null || echo -e "${YELLOW}Нет информации о порте $https_port${NC}"
+                    
+                    echo -e "${GREEN}Порты $http_port и $https_port должны быть заняты вашей нодой.${NC}"
+                else
+                    echo -e "${RED}Конфигурационный файл не найден!${NC}"
+                    echo -e "${YELLOW}Проверяем стандартные порты 80 и 443, а также альтернативные 9080 и 9443...${NC}"
+                    ss -tulnp | grep -E ':80|:443|:9080|:9443'
+                fi
+                
                 read -n 1 -s -r -p "Нажмите любую клавишу для продолжения..."
                 ;;
             6)
-                echo -e "${BLUE}Проверка работоспособности ноды (health check):${NC}"
-                response=$(curl -s http://localhost/health 2>/dev/null)
-                if [ -z "$response" ]; then
-                    echo -e "${RED}Нода не отвечает на health check.${NC}"
-                elif [[ "$response" == *"\"status\":\"ok\""* ]]; then
-                    echo -e "${GREEN}Нода работает корректно! Ответ: $response${NC}"
-                    echo -e "${GREEN}Ваша нода работает и отвечает. Оставьте её запущенной на 24 часа для накопления нагрузки.${NC}"
+                echo -e "${BLUE}=== Проверка работоспособности ноды ===${NC}"
+                
+                # Определяем порты из конфигурации
+                if [ -f "/opt/popcache/config.json" ]; then
+                    http_port=$(grep -o '"http_port": *[0-9]*' /opt/popcache/config.json | grep -o '[0-9]*')
+                    https_port=$(grep -o '"port": *[0-9]*' /opt/popcache/config.json | grep -o '[0-9]*')
+                    
+                    if [ -z "$http_port" ]; then http_port="80"; fi
+                    if [ -z "$https_port" ]; then https_port="443"; fi
+                    
+                    echo -e "${YELLOW}Проверка HTTP эндпоинта (порт $http_port):${NC}"
+                    http_result=$(curl -s http://localhost:$http_port/health 2>/dev/null)
+                    if [ -n "$http_result" ]; then
+                        echo "$http_result" && echo
+                    else
+                        echo -e "${RED}HTTP эндпоинт не отвечает.${NC}" && echo
+                    fi
+                    
+                    echo -e "${YELLOW}Проверка HTTPS эндпоинта (порт $https_port):${NC}"
+                    https_result=$(curl -sk https://localhost:$https_port/health 2>/dev/null)
+                    if [ -n "$https_result" ]; then
+                        echo "$https_result" && echo
+                    else
+                        echo -e "${BLUE}HTTPS эндпоинт не отвечает. Это нормально, если нода работает через HTTP.${NC}" && echo
+                    fi
+                    
+                    # Проверяем общий статус
+                    if [[ "$http_result" == *"status\":\"ok"* ]]; then
+                        echo -e "${GREEN}Нода работает корректно через HTTP эндпоинт!${NC}"
+                        
+                        # Проверяем, зарегистрирована ли нода - несколькими способами
+                        echo -e "${BLUE}Проверяем регистрацию ноды...${NC}"
+                        pop_id=""
+                        
+                        # Способ 1: Через /state API
+                        if [ -z "$pop_id" ]; then
+                            state_info=$(curl -s http://localhost:$http_port/state 2>/dev/null)
+                            temp_pop_id=$(echo "$state_info" | grep -o '"pop_id":[0-9]*' | grep -o '[0-9]*' 2>/dev/null)
+                            # Альтернативный формат - в кавычках
+                            if [ -z "$temp_pop_id" ]; then
+                                temp_pop_id=$(echo "$state_info" | grep -o '"pop_id":"[0-9]*"' | grep -o '[0-9]*' 2>/dev/null)
+                            fi
+                            if [ -n "$temp_pop_id" ] && [ "$temp_pop_id" != "0" ]; then
+                                pop_id="$temp_pop_id"
+                            fi
+                        fi
+                        
+                        # Способ 2: Через логи
+                        if [ -z "$pop_id" ] && [ -f "/opt/popcache/logs/stdout.log" ]; then
+                            temp_pop_id=$(grep -o "pop_id: [0-9]*" /opt/popcache/logs/stdout.log | tail -1 | grep -o '[0-9]*' 2>/dev/null)
+                            if [ -n "$temp_pop_id" ] && [ "$temp_pop_id" != "0" ]; then
+                                pop_id="$temp_pop_id"
+                            fi
+                        fi
+                        
+                        # Способ 3: Проверка успешной регистрации в логах
+                        registration_status=""
+                        if [ -f "/opt/popcache/logs/stdout.log" ]; then
+                            if grep -q "Successfully registered" /opt/popcache/logs/stdout.log 2>/dev/null; then
+                                registration_status="registered"
+                            elif grep -q "Node already registered" /opt/popcache/logs/stdout.log 2>/dev/null; then
+                                registration_status="already_registered"
+                            fi
+                        fi
+                        
+                        # Выводим результат
+                        if [ -n "$pop_id" ]; then
+                            echo -e "${GREEN}Нода успешно зарегистрирована в сети. POP ID: $pop_id${NC}"
+                        elif [ "$registration_status" = "registered" ] || [ "$registration_status" = "already_registered" ]; then
+                            echo -e "${GREEN}Нода зарегистрирована в сети, но ID не удалось определить.${NC}"
+                        else
+                            echo -e "${YELLOW}Информация о регистрации ноды не найдена. Возможно, процесс регистрации еще идет.${NC}"
+                            echo -e "${BLUE}Для получения более подробной информации проверьте логи ноды.${NC}"
+                        fi
+                    elif [[ "$https_result" == *"status\":\"ok"* ]]; then
+                        echo -e "${GREEN}Нода работает корректно через HTTPS эндпоинт!${NC}"
+                    else
+                        echo -e "${RED}Нода не отвечает должным образом. Проверьте логи и конфигурацию.${NC}"
+                    fi
                 else
-                    echo -e "${YELLOW}Нода отвечает, но статус не 'ok'. Ответ: $response${NC}"
+                    echo -e "${RED}Конфигурационный файл не найден!${NC}"
                 fi
+                
                 read -n 1 -s -r -p "Нажмите любую клавишу для продолжения..."
                 ;;
             7)
@@ -837,7 +968,12 @@ restore_from_unpacked_files() {
     # Копируем файлы из резервной копии
     echo -e "${BLUE}Копируем файлы из $BACKUP_DIR в /opt/popcache...${NC}"
     cp -f "$BACKUP_DIR/config.json" /opt/popcache/
-    cp -f "$BACKUP_DIR/.pop_state.json" /opt/popcache/
+    
+    # НЕ копируем файл аппаратной подписи, чтобы избежать ошибки Hardware signature mismatch
+    echo -e "${YELLOW}Удаляем старый файл аппаратной подписи (.pop_state.json) для предотвращения ошибки Hardware signature mismatch...${NC}"
+    if [ -f "/opt/popcache/.pop_state.json" ]; then
+        rm -f /opt/popcache/.pop_state.json
+    fi
     
     # Копируем директорию logs, если она существует
     if [ -d "$BACKUP_DIR/logs" ]; then
@@ -848,6 +984,7 @@ restore_from_unpacked_files() {
     # Проверяем наличие конфигурационного файла после копирования
     if [ -f "/opt/popcache/config.json" ]; then
         echo -e "${GREEN}Конфигурация успешно восстановлена${NC}"
+        echo -e "${GREEN}Нода создаст новую аппаратную подпись при запуске${NC}"
         
         # Настраиваем systemd-сервис
         setup_and_start_service
@@ -881,9 +1018,16 @@ restore_from_archive() {
             echo -e "${BLUE}Восстанавливаем из резервной копии: $full_backup_path${NC}"
             tar -xzf "$full_backup_path" -C /opt/popcache
             
+            # Удаляем файл аппаратной подписи для предотвращения ошибки Hardware signature mismatch
+            echo -e "${YELLOW}Удаляем старый файл аппаратной подписи (.pop_state.json) для предотвращения ошибки Hardware signature mismatch...${NC}"
+            if [ -f "/opt/popcache/.pop_state.json" ]; then
+                rm -f /opt/popcache/.pop_state.json
+            fi
+            
             # Проверяем наличие конфигурационного файла после распаковки
             if [ -f "/opt/popcache/config.json" ]; then
                 echo -e "${GREEN}Конфигурация успешно восстановлена${NC}"
+                echo -e "${GREEN}Нода создаст новую аппаратную подпись при запуске${NC}"
                 
                 # Настраиваем systemd-сервис
                 setup_and_start_service
@@ -931,14 +1075,105 @@ EOL'
         chmod 755 /opt/popcache/pop
     fi
     
+    # Проверяем конфигурационный файл и обновляем информацию о местоположении
+    if [ -f "/opt/popcache/config.json" ]; then
+        echo -e "${BLUE}Создаем резервную копию конфигурационного файла...${NC}"
+        cp -f /opt/popcache/config.json /opt/popcache/config.json.backup
+        
+        # Определяем текущее и новое местоположение сервера
+        echo -e "${YELLOW}Текущее местоположение в конфигурации:${NC}"
+        current_location=$(grep -o '"pop_location":.*".*"' /opt/popcache/config.json | sed 's/"pop_location":\s*"\(.*\)"/\1/')
+        echo -e "${BLUE}$current_location${NC}"
+        
+        # Автоматическое определение местоположения сервера
+        auto_location=$(get_server_location)
+        if [ "$auto_location" != "Unknown Location" ]; then
+            echo -e "${GREEN}Автоматически определенное местоположение: ${BLUE}$auto_location${NC}"
+        else
+            echo -e "${YELLOW}Не удалось автоматически определить местоположение сервера${NC}"
+            auto_location=""
+        fi
+        
+        echo -e "${YELLOW}Выберите действие для местоположения:${NC}"
+        echo "1) Использовать автоматически определенное ($auto_location)"
+        echo "2) Ввести вручную"
+        echo "3) Оставить текущее ($current_location)"
+        read -r location_choice
+        
+        case $location_choice in
+            1)
+                if [ ! -z "$auto_location" ]; then
+                    echo -e "${GREEN}Обновляем местоположение на: $auto_location${NC}"
+                    sed -i "s/\(\"pop_location\":\s*\)\".*\"/\1\"$auto_location\"/" /opt/popcache/config.json
+                else
+                    echo -e "${RED}Автоматическое определение не удалось. Оставляем текущее: $current_location${NC}"
+                fi
+                ;;
+            2)
+                echo -e "${YELLOW}Введите новое местоположение сервера (например: 'Amsterdam, NL'):${NC}"
+                read -r new_location
+                
+                if [ -n "$new_location" ]; then
+                    echo -e "${GREEN}Обновляем местоположение на: $new_location${NC}"
+                    sed -i "s/\(\"pop_location\":\s*\)\".*\"/\1\"$new_location\"/" /opt/popcache/config.json
+                else
+                    echo -e "${BLUE}Ничего не введено. Оставляем текущее местоположение: $current_location${NC}"
+                fi
+                ;;
+            *)
+                echo -e "${BLUE}Оставляем текущее местоположение: $current_location${NC}"
+                ;;
+        esac
+        
+        # Спрашиваем о модификации портов
+        echo -e "${YELLOW}Хотите изменить стандартные порты (80/443) на нестандартные (9080/9443) для предотвращения конфликтов? (y/n)${NC}"
+        read -r change_ports
+        
+        if [ "$change_ports" = "y" ]; then
+            # Проверяем, настроены ли уже нестандартные порты
+            if grep -q '"http_port": *80' /opt/popcache/config.json; then
+                echo -e "${YELLOW}Изменяем HTTP порт с 80 на 9080...${NC}"
+                sed -i 's/"http_port": *80/"http_port": 9080/g' /opt/popcache/config.json
+            fi
+            
+            if grep -q '"port": *443' /opt/popcache/config.json; then
+                echo -e "${YELLOW}Изменяем HTTPS порт с 443 на 9443...${NC}"
+                sed -i 's/"port": *443/"port": 9443/g' /opt/popcache/config.json
+            fi
+            
+            # Получаем информацию о портах из конфига
+            http_port=$(grep -o '"http_port": *[0-9]*' /opt/popcache/config.json | grep -o '[0-9]*')
+            https_port=$(grep -o '"port": *[0-9]*' /opt/popcache/config.json | grep -o '[0-9]*')
+            
+            echo -e "${GREEN}Конфигурация обновлена. Используемые порты: HTTP: $http_port, HTTPS: $https_port${NC}"
+        else
+            echo -e "${BLUE}Оставляем стандартные порты${NC}"
+        fi
+    else
+        echo -e "${RED}Конфигурационный файл не найден. Сервис может не запуститься корректно.${NC}"
+    fi
+    
     # Запускаем сервис
     echo -e "${BLUE}Запускаем сервис...${NC}"
     systemctl daemon-reload
     systemctl enable popcache.service
     systemctl start popcache.service
     
+    # Даем немного времени на запуск
+    sleep 10
+    
     if systemctl is-active --quiet popcache.service; then
         echo -e "${GREEN}Нода Pipe Network Testnet восстановлена и запущена!${NC}"
+        
+        # Получаем порты из конфига
+        if [ -f "/opt/popcache/config.json" ]; then
+            http_port=$(grep -o '"http_port": *[0-9]*' /opt/popcache/config.json | grep -o '[0-9]*')
+            https_port=$(grep -o '"port": *[0-9]*' /opt/popcache/config.json | grep -o '[0-9]*')
+            
+            echo -e "${YELLOW}Для проверки работоспособности ноды используйте:${NC}"
+            echo -e "${BLUE}curl -s http://localhost:$http_port/health && echo${NC}"
+            echo -e "${BLUE}curl -sk https://localhost:$https_port/health && echo${NC}"
+        fi
     else
         echo -e "${RED}Не удалось запустить сервис. Проверьте логи с помощью 'journalctl -u popcache.service'${NC}"
     fi
@@ -949,9 +1184,80 @@ restore_node_data() {
     echo -e "${BLUE}=== Восстановление данных ноды ===${NC}"
     
     if [ ! -d "$BACKUP_DIR" ] || [ -z "$(ls -A "$BACKUP_DIR" 2>/dev/null)" ]; then
-        echo -e "${RED}Резервные копии не найдены в $BACKUP_DIR${NC}"
-        echo -e "${YELLOW}Хотите использовать файл миграции для настройки ноды? (y/n)${NC}"
-        read -r migration_confirm
+        echo -e "${YELLOW}Стандартная директория с бэкапами ($BACKUP_DIR) пуста или не существует${NC}"
+        echo -e "${BLUE}Проверяем другие возможные директории с бэкапами...${NC}"
+        
+        # Проверяем другие возможные директории с бэкапами
+        possible_dirs=("/root/pipe_docker_backup" "/root/popcache_backup" "/root/pipe_backup")
+        found_backup_dir=""
+        
+        for dir in "${possible_dirs[@]}"; do
+            if [ -d "$dir" ] && [ ! -z "$(ls -A "$dir" 2>/dev/null)" ]; then
+                echo -e "${GREEN}Найдена альтернативная директория с бэкапами: $dir${NC}"
+                found_backup_dir="$dir"
+                break
+            fi
+        done
+        
+        if [ ! -z "$found_backup_dir" ]; then
+            echo -e "${YELLOW}Хотите использовать директорию $found_backup_dir для восстановления? (y/n)${NC}"
+            read -r use_alt_dir
+            
+            if [ "$use_alt_dir" = "y" ]; then
+                BACKUP_DIR="$found_backup_dir"
+                echo -e "${GREEN}Используем $BACKUP_DIR для восстановления${NC}"
+                
+                # Проверяем, есть ли уже распакованные файлы
+                if [ -f "$BACKUP_DIR/config.json" ]; then
+                    echo -e "${GREEN}Найден конфигурационный файл config.json${NC}"
+                    echo -e "${YELLOW}Начинаем восстановление из распакованных файлов...${NC}"
+                    restore_from_unpacked_files
+                    return
+                fi
+                
+                # Если нет распакованных файлов, проверяем архивы
+                tar_files=$(ls -1t "$BACKUP_DIR" | grep -E "\.tar\.gz$" | nl)
+                if [ -n "$tar_files" ]; then
+                    echo -e "${BLUE}Найдены архивы с резервными копиями:${NC}"
+                    echo "$tar_files"
+                    echo -e "${YELLOW}Выберите номер архива для восстановления (1 для первого в списке):${NC}"
+                    read -r backup_number
+                    
+                    if [ "$backup_number" -gt 0 ] 2>/dev/null; then
+                        restore_from_archive $backup_number
+                        return
+                    else
+                        echo -e "${RED}Неверный выбор${NC}"
+                    fi
+                else
+                    echo -e "${RED}В директории $BACKUP_DIR не найдено ни конфигурационных файлов, ни архивов с резервными копиями.${NC}"
+                fi
+            else
+                echo -e "${YELLOW}Хотите указать свой путь к директории с бэкапами? (y/n)${NC}"
+                read -r custom_dir_confirm
+                
+                if [ "$custom_dir_confirm" = "y" ]; then
+                    echo -e "${BLUE}Введите полный путь к директории с бэкапами:${NC}"
+                    read -r custom_backup_dir
+                    
+                    if [ -d "$custom_backup_dir" ] && [ ! -z "$(ls -A "$custom_backup_dir" 2>/dev/null)" ]; then
+                        BACKUP_DIR="$custom_backup_dir"
+                        echo -e "${GREEN}Используем $BACKUP_DIR для восстановления${NC}"
+                    else
+                        echo -e "${RED}Указанная директория не существует или пуста${NC}"
+                        echo -e "${YELLOW}Хотите использовать файл миграции для настройки ноды? (y/n)${NC}"
+                        read -r migration_confirm
+                    fi
+                else
+                    echo -e "${YELLOW}Хотите использовать файл миграции для настройки ноды? (y/n)${NC}"
+                    read -r migration_confirm
+                fi
+            fi
+        else
+            echo -e "${RED}Другие директории с бэкапами не найдены${NC}"
+            echo -e "${YELLOW}Хотите использовать файл миграции для настройки ноды? (y/n)${NC}"
+            read -r migration_confirm
+        fi
         
         if [ "$migration_confirm" = "y" ]; then
             echo -e "${BLUE}Введите полный путь к вашему файлу информации о миграции:${NC}"
